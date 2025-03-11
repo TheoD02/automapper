@@ -18,11 +18,14 @@ use PhpParser\PrettyPrinterAbstract;
 use Symfony\Bundle\FrameworkBundle\DataCollector\AbstractDataCollector;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\DataCollector\LateDataCollectorInterface;
 use Symfony\Component\VarDumper\Cloner\Data;
+use function PHPUnit\Framework\matches;
 
-class MetadataCollector extends AbstractDataCollector
+class MetadataCollector extends AbstractDataCollector implements LateDataCollectorInterface
 {
     private readonly PrettyPrinterAbstract $printer;
+    private array $collected = [];
 
     public function __construct(
         private readonly MetadataFactory $metadataFactory,
@@ -68,7 +71,7 @@ class MetadataCollector extends AbstractDataCollector
                             new Expr\Variable('target'),
                             $property,
                             $uniqueVariableScope,
-                            new Expr\Variable('source')
+                            new Expr\Variable('source'),
                         );
 
                         if ($property->target->writeMutator && $property->target->writeMutator->type !== WriteMutator::TYPE_ADDER_AND_REMOVER) {
@@ -77,7 +80,7 @@ class MetadataCollector extends AbstractDataCollector
                                 $output,
                                 $property->transformer instanceof AssignedByReferenceTransformerInterface
                                     ? $property->transformer->assignByRef()
-                                    : false
+                                    : false,
                             ));
                         }
 
@@ -92,7 +95,7 @@ class MetadataCollector extends AbstractDataCollector
                             'code' => $this->highlightStatements($propStatements),
                         ];
                     },
-                    array_filter($metadata->propertiesMetadata, fn (PropertyMetadata $property) => !$property->ignored)
+                    array_filter($metadata->propertiesMetadata, fn (PropertyMetadata $property) => !$property->ignored),
                 ),
                 'notUsedProperties' => array_map(
                     fn (PropertyMetadata $property) => [
@@ -100,19 +103,27 @@ class MetadataCollector extends AbstractDataCollector
                         'target' => $property->target,
                         'reason' => $property->ignoreReason,
                     ],
-                    array_filter($metadata->propertiesMetadata, fn (PropertyMetadata $property) => $property->ignored)
+                    array_filter($metadata->propertiesMetadata, fn (PropertyMetadata $property) => $property->ignored),
                 ),
                 'fileCode' => $fileCode,
             ];
         }
 
-        $this->data = $metadatas;
+        $this->data = [
+            'metadata' => $metadatas,
+            'collected' => $this->collected,
+        ];
     }
 
     /** @return array<mixed>|Data */
     public function getMetadatas(): array|Data
     {
-        return $this->data;
+        return $this->data['metadata'] ?? [];
+    }
+
+    public function getPerformedMappers(): array
+    {
+        return $this->data['collected']['mappings'] ?? [];
     }
 
     public static function getTemplate(): ?string
@@ -153,5 +164,39 @@ class MetadataCollector extends AbstractDataCollector
         ini_set('highlight.string', $highlightString);
 
         return str_replace(htmlspecialchars('<?php '), '', $code);
+    }
+
+    public function lateCollect()
+    {
+        return array_merge($this->data, ['collected' => $this->collected]);
+    }
+
+    public function collectMapper(string $class, array|object $source, string|array|object $target, float $time): void
+    {
+        $source = match (true) {
+            is_array($source) => 'array',
+            is_object($source) => get_debug_type($source),
+            default => $source,
+        };
+
+        $target = match (true) {
+            is_array($target) => 'array',
+            is_object($target) => get_debug_type($target),
+            default => $target,
+        };
+
+        $mappingName = "{$source} => {$target}";
+
+        $this->collected['mappings'][$mappingName]['iterations'][] = [
+            'class' => $class,
+            'source' => $source,
+            'target' => $target,
+            'time' => $time,
+        ];
+
+        if (!isset($this->collected['mappings'][$mappingName]['totalTime'])) {
+            $this->collected['mappings'][$mappingName]['totalTime'] = 0;
+        }
+        $this->collected['mappings'][$mappingName]['totalTime'] += $time;
     }
 }

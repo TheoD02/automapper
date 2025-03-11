@@ -42,6 +42,62 @@
     {% else %}
         <h2>Mappers</h2>
 
+<div class="sf-tabs">
+    {% for mappingName, performedMapper in collector.performedMappers %}
+        <div class="tab">
+            <h3 class="tab-title">{{ mappingName }}</h3>
+
+            <div class="metrics">
+                <div class="metric-group">
+                    <div class="metric">
+                        <span class="value">
+                            {% set time = performedMapper.totalTime %}
+                            {% if time < 0.001 %}
+                            {   { (time * 1000000)|number_format(0) }} <span class="unit">μs</span>
+                            {% elseif time < 1 %}
+                                {{ (time * 1000)|number_format(2) }} <span class="unit">ms</span>
+                            {% else %}
+                                {{ time|number_format(4) }} <span class="unit">s</span>
+                            {% endif %}
+                        </span>
+                        <span class="label">Total time</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content">
+                <!-- Table -->
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>Source</th>
+                        <th>Target</th>
+                        <th>Time</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for performedMapper in performedMapper.iterations %}
+                        <tr>
+                            <td>{{ performedMapper.source }}</td>
+                            <td>{{ performedMapper.target }}</td>
+                            <td>
+                                {% set time = performedMapper.time %}
+                                {% if time < 0.001 %}
+                                    {{ (time * 1000000)|number_format(0) }} <span class="unit">μs</span>
+                                {% elseif time < 1 %}
+                                    {{ (time * 1000)|number_format(2) }} <span class="unit">ms</span>
+                                {% else %}
+                                    {{ time|number_format(4) }} <span class="unit">s</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endfor %}
+
         <div class="sf-tabs">
             {% for metadata in collector.metadatas %}
                 <div class="tab">

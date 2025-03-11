@@ -15,6 +15,7 @@ use AutoMapper\Loader\FileLoader;
 use AutoMapper\Loader\FileReloadStrategy;
 use AutoMapper\Metadata\MetadataFactory;
 use AutoMapper\Provider\ProviderRegistry;
+use AutoMapper\Symfony\Bundle\Debug\TraceableAutoMapper;
 use AutoMapper\Symfony\ExpressionLanguageProvider;
 use AutoMapper\Transformer\PropertyTransformer\PropertyTransformerRegistry;
 use Symfony\Component\Lock\LockFactory;
@@ -32,6 +33,12 @@ return static function (ContainerConfigurator $container) {
             ])
             ->alias(AutoMapperInterface::class, AutoMapper::class)->public()
             ->alias(AutoMapperRegistryInterface::class, AutoMapper::class)->public()
+        ->set(TraceableAutoMapper::class)
+            ->decorate(AutoMapper::class)
+            ->args([
+                service('AutoMapper\Symfony\Bundle\Debug\TraceableAutoMapper.inner'),
+                service('automapper.data_collector.metadata'),
+            ])
 
         ->set('automapper.file_loader_lock_factory_store')
             ->class(FlockStore::class)
